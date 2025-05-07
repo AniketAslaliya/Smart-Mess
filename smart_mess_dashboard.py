@@ -127,4 +127,56 @@ if role == "Student":
         fig_rating.update_layout(yaxis=dict(range=[0, 5]))
         st.plotly_chart(fig_rating, use_container_width=True)
 
-# Remaining sections for Mess Worker and Admin follow unchanged
+# --- Mess Worker View ---
+elif role == "Mess Worker":
+    st.header("👷 Mess Worker View")
+    show_current_status()
+
+    st.subheader("🔔 Refill Alerts History")
+    low_tray_df = df[df["tray_g"] < 300]
+    st.dataframe(low_tray_df.sort_values("timestamp", ascending=False).head(10))
+
+    st.subheader("🗑️ Food Waste Over Time")
+    waste_chart = px.area(df, x="timestamp", y="waste_g", title="Waste Quantity Trend", color_discrete_sequence=["#F8766D"])
+    st.plotly_chart(waste_chart, use_container_width=True)
+
+    st.subheader("📬 Student Feedback")
+    fb_data = list(feedback_collection.find({"rating": {"$exists": True}}).sort("timestamp", -1))
+    if fb_data:
+        fb_df = pd.DataFrame(fb_data)
+        fb_df["timestamp"] = pd.to_datetime(fb_df["timestamp"])
+        st.dataframe(fb_df[["timestamp", "name", "feedback", "rating"]])
+
+# --- Mess Admin View ---
+elif role == "Mess Admin":
+    st.header("🧑‍💼 Mess Admin Dashboard")
+    show_current_status()
+
+    st.subheader("📈 Tray & Waste Trends")
+    col1, col2 = st.columns(2)
+    with col1:
+        fig1 = px.line(df, x="timestamp", y="tray_g", title="Tray Level (g)", color_discrete_sequence=["green"])
+        st.plotly_chart(fig1, use_container_width=True)
+    with col2:
+        fig2 = px.line(df, x="timestamp", y="waste_g", title="Waste Level (g)", color_discrete_sequence=["red"])
+        st.plotly_chart(fig2, use_container_width=True)
+
+    st.subheader("📬 View All Student Feedback")
+    fb_data = list(feedback_collection.find({"rating": {"$exists": True}}).sort("timestamp", -1))
+    if fb_data:
+        fb_df = pd.DataFrame(fb_data)
+        fb_df["timestamp"] = pd.to_datetime(fb_df["timestamp"])
+        st.dataframe(fb_df[["timestamp", "name", "feedback", "rating"]])
+
+    st.subheader("📊 Weekly Meal Rating Summary")
+    fb_df["day"] = fb_df["timestamp"].dt.day_name()
+    avg_ratings = fb_df.groupby("day")["rating"].mean().reset_index()
+    fig_rating = px.bar(avg_ratings, x="day", y="rating", title="Average Meal Rating by Day", color="day", color_discrete_sequence=px.colors.qualitative.Set2)
+    fig_rating.update_layout(yaxis=dict(range=[0, 5]))
+    st.plotly_chart(fig_rating)
+
+    st.subheader("📢 Send Alert to Students")
+    alert_msg = st.text_input("Compose alert message:")
+    if st.button("Send Alert"):
+        alerts_collection.insert_one({"message": alert_msg, "timestamp": datetime.now()})
+        st.success("📣 Alert sent!")
